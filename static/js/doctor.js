@@ -3,6 +3,20 @@
    ───────────────────────────────────────── */
 
 let currentPredictionId = null;
+let currentPredictionItem = null; // Store full item for PDF generation
+
+/* ─────────────────────────────────────────
+   HELPERS
+   ───────────────────────────────────────── */
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
 
 /* ─────────────────────────────────────────
    LOAD USER
@@ -136,6 +150,7 @@ async function loadCases() {
 
 function openReview(item) {
   currentPredictionId = item.id;
+  currentPredictionItem = item; // Save for PDF download
   document.getElementById("reviewGradcam").src =
     `/uploads/gradcam/${item.gradcam_path}`;
   document.getElementById("reviewModal").classList.add("show");
@@ -159,6 +174,76 @@ function openReview(item) {
 
 function closeReview() {
   document.getElementById("reviewModal").classList.remove("show");
+}
+
+/* ─────────────────────────────────────────
+   DOCTOR DOWNLOAD PDF REPORT
+   ───────────────────────────────────────── */
+
+async function doctorDownloadReport() {
+  const item = currentPredictionItem;
+  if (!item) {
+    alert("No case loaded.");
+    return;
+  }
+
+  const btn = document.querySelector(".review-actions button[onclick='doctorDownloadReport()']");
+  if (btn) { btn.disabled = true; btn.textContent = "Generating..."; }
+
+  try {
+    // Fetch original image
+    const originalRes = await fetch(`/uploads/${item.image_path}`);
+    const originalBase64 = await blobToBase64(await originalRes.blob());
+
+    // Fetch GradCAM image
+    let gradcamBase64 = null;
+    if (item.gradcam_path) {
+      const gradcamRes = await fetch(`/uploads/gradcam/${item.gradcam_path}`);
+      gradcamBase64 = await blobToBase64(await gradcamRes.blob());
+    }
+
+    // Current doctor note and prescription values
+    const doctor_note = document.getElementById("doctorNote").value;
+    const medication  = document.getElementById("medication").value;
+    const dosage      = document.getElementById("dosage").value;
+    const duration    = document.getElementById("duration").value;
+
+    const res = await fetch("/api/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        patient: {
+          name:   item.patient_name || "N/A",
+          age:    item.patient_age  || "N/A",
+          gender: item.patient_gender || "N/A",
+          area:   "Skin Region",
+        },
+        stage1: { raw: item.stage1_label, confidence: item.stage1_conf },
+        stage2: { raw: item.stage2_label, confidence: item.stage2_conf },
+        original_image: originalBase64,
+        gradcam_image:  gradcamBase64,
+        doctor_note:    doctor_note,
+        medication:     medication,
+        dosage:         dosage,
+        duration:       duration,
+        review_status:  item.review_status || "Approved",
+      }),
+    });
+
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    // Download the PDF
+    const link = document.createElement("a");
+    link.href = `data:application/pdf;base64,${data.pdf}`;
+    link.download = `DermScan_Report_${item.patient_name || item.id}.pdf`;
+    link.click();
+  } catch (e) {
+    alert("Failed to generate report: " + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Download PDF"; }
+  }
 }
 
 /* ─────────────────────────────────────────

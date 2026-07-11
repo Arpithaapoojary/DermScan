@@ -9,10 +9,12 @@ from flask_cors import CORS
 from flask_bcrypt import Bcrypt
 from PIL import Image
 import tensorflow as tf
+import re
 from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.applications import MobileNetV2
-from datetime import datetime
+from datetime import datetime, timedelta
+import random
 import tensorflow as tf
 import cv2
 import matplotlib.cm as cm
@@ -438,8 +440,11 @@ def register():
 
     if not name or not email or not password:
         return jsonify({'error': 'Name, email and password are required.'}), 400
-    if role not in ('patient', 'doctor'):
-        return jsonify({'error': 'Invalid role.'}), 400
+    if role != 'patient':
+        return jsonify({'error': 'Only patients can register. Doctor registration is disabled.'}), 403
+        
+    if len(password) < 8 or not re.search(r'[A-Z]', password) or not re.search(r'[0-9]', password):
+        return jsonify({'error': 'Password must be at least 8 characters long, contain 1 uppercase letter and 1 number.'}), 400
 
     hashed = bcrypt.generate_password_hash(password).decode('utf-8')
     try:
@@ -455,12 +460,82 @@ def register():
         return jsonify({'error': 'Email already registered.'}), 400
 
 
+@app.route('/api/request_otp', methods=['POST'])
+def request_otp():
+    d = request.get_json()
+    email = d.get('email', '').strip().lower()
+    if not email:
+        return jsonify({'error': 'Email is required.'}), 400
+        
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute('SELECT id FROM users WHERE email = ?', (email,))
+    user = cur.fetchone()
+    
+    if not user:
+        conn.close()
+        return jsonify({'error': 'User not found.'}), 404
+        
+    otp = str(random.randint(100000, 999999))
+    expiry = (datetime.utcnow() + timedelta(minutes=15)).strftime('%Y-%m-%d %H:%M:%S')
+    
+    cur.execute('UPDATE users SET otp = ?, otp_expiry = ? WHERE email = ?', (otp, expiry, email))
+    conn.commit()
+    conn.close()
+    
+    print(f"*** SIMULATED EMAIL TO {email}: Your OTP for Password Reset is {otp} ***")
+    
+    return jsonify({'message': 'OTP has been sent to your email.'})
+
+@app.route('/api/reset_password', methods=['POST'])
+def reset_password():
+    d = request.get_json()
+    email = d.get('email', '').strip().lower()
+    otp_input = d.get('otp', '').strip()
+    password = d.get('password', '')
+
+    if not email or not otp_input or not password:
+        return jsonify({'error': 'Email, OTP, and new password are required.'}), 400
+        
+    if len(password) < 8 or not re.search(r'[A-Z]', password) or not re.search(r'[0-9]', password):
+        return jsonify({'error': 'Password must be at least 8 characters long, contain 1 uppercase letter and 1 number.'}), 400
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    
+    cur.execute('SELECT otp, otp_expiry FROM users WHERE email = ?', (email,))
+    user = cur.fetchone()
+    
+    if not user:
+        conn.close()
+        return jsonify({'error': 'User not found.'}), 404
+        
+    if user['otp'] != otp_input:
+        conn.close()
+        return jsonify({'error': 'Invalid OTP.'}), 400
+        
+    if not user['otp_expiry'] or datetime.utcnow() > datetime.strptime(user['otp_expiry'], '%Y-%m-%d %H:%M:%S'):
+        conn.close()
+        return jsonify({'error': 'OTP has expired. Please request a new one.'}), 400
+
+    hashed = bcrypt.generate_password_hash(password).decode('utf-8')
+    try:
+        cur.execute('UPDATE users SET password = ?, otp = NULL, otp_expiry = NULL WHERE email = ?', (hashed, email))
+        conn.commit()
+        conn.close()
+        return jsonify({'message': 'Password reset successfully. Please login.'})
+    except Exception as e:
+        conn.close()
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/login', methods=['POST'])
 def login():
 
     d = request.get_json()
 
-    email = d.get('email', '').strip().lower()
+    email_raw = d.get('email', '').strip()
+    email = email_raw.lower()
 
     password = d.get('password', '')
 
@@ -528,11 +603,45 @@ def logout():
 def me():
     if 'user_id' not in session:
         return jsonify({'error': 'Not logged in.'}), 401
+        
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    user = conn.execute('SELECT age, gender FROM users WHERE id=?', (session['user_id'],)).fetchone()
+    conn.close()
+    
     return jsonify({
         'id':   session['user_id'],
         'name': session['user_name'],
         'role': session['user_role'],
+        'age':  user['age'] if user and user['age'] else 'N/A',
+        'gender': user['gender'] if user and user['gender'] else 'N/A'
     })
+
+@app.route('/api/update_profile', methods=['POST'])
+def update_profile():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not logged in.'}), 401
+    
+    d = request.get_json()
+    name = d.get('name', '').strip()
+    age = d.get('age')
+    gender = d.get('gender', '').strip()
+    
+    if not name:
+        return jsonify({'error': 'Name is required.'}), 400
+        
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute('UPDATE users SET name = ?, age = ?, gender = ? WHERE id = ?', 
+                    (name, age if age else None, gender if gender else None, session['user_id']))
+        conn.commit()
+        conn.close()
+        
+        session['user_name'] = name # Update session
+        return jsonify({'message': 'Profile updated successfully!', 'name': name, 'age': age, 'gender': gender})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # ─────────────────────────────────────────
 # PREDICT (requires login)
@@ -765,7 +874,41 @@ def predict():
         return jsonify({
             'error': str(e)
         }), 500
-@app.route('/api/report', methods=['POST'])
+
+@app.route('/api/predict/<int:pid>', methods=['DELETE'])
+def delete_prediction(pid):
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not logged in.'}), 401
+        
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        
+        # Ensure the prediction belongs to the logged-in user
+        cur.execute('SELECT id, image_path, gradcam_path FROM predictions WHERE id = ? AND user_id = ?', 
+                    (pid, session['user_id']))
+        pred = cur.fetchone()
+        
+        if not pred:
+            conn.close()
+            return jsonify({'error': 'Prediction not found or unauthorized.'}), 404
+            
+        cur.execute('DELETE FROM predictions WHERE id = ?', (pid,))
+        conn.commit()
+        conn.close()
+        
+        # Optional: Delete actual files from disk
+        if pred[1]:
+            try: os.remove(os.path.join(UPLOAD_FOLDER, 'original', pred[1]))
+            except: pass
+        if pred[2]:
+            try: os.remove(os.path.join(UPLOAD_FOLDER, 'gradcam', pred[2]))
+            except: pass
+            
+        return jsonify({'message': 'Scan deleted successfully.'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/report', methods=['POST'])
 def generate_report():
 

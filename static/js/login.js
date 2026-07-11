@@ -10,9 +10,11 @@ function switchTab(type) {
   if (type === "login") {
     tabs[0].classList.add("active");
     document.getElementById("loginForm").classList.add("active");
-  } else {
+  } else if (type === "register") {
     tabs[1].classList.add("active");
     document.getElementById("registerForm").classList.add("active");
+  } else if (type === "forgot") {
+    document.getElementById("forgotForm").classList.add("active");
   }
 }
 
@@ -124,7 +126,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
     showMessage("loginMsg", "Authenticated! Redirecting to your dashboard…");
 
     setTimeout(() => {
-      window.location.href = "/dashboard";
+      window.location.href = data.redirect || "/dashboard";
     }, 1000);
   } catch (err) {
     showMessage("loginMsg", err.message, "error");
@@ -133,87 +135,160 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
   }
 });
 
-/* ─── LOGIN VALIDATION & SUBMIT ─────────────────────────────────────────────── */
-
-document.getElementById("loginForm").addEventListener("submit", async (e) => {
+/* ─── REGISTER VALIDATION & SUBMIT ──────────────────────────────────────────── */
+document.getElementById("registerForm").addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const emailEl = document.getElementById("loginEmail");
+  const nameEl = document.getElementById("regName");
+  const emailEl = document.getElementById("regEmail");
+  const passEl = document.getElementById("regPassword");
+  const ageEl = document.getElementById("regAge");
+  const genderEl = document.getElementById("regGender");
 
-  const passEl = document.getElementById("loginPassword");
+  const nameMsgEl = document.getElementById("regNameMsg");
+  const emailMsgEl = document.getElementById("regEmailMsg");
+  const passMsgEl = document.getElementById("regPasswordMsg");
 
-  const emailMsgEl = document.getElementById("loginEmailMsg");
-
-  const passMsgEl = document.getElementById("loginPasswordMsg");
-
+  clearFieldError(nameEl, nameMsgEl);
   clearFieldError(emailEl, emailMsgEl);
-
   clearFieldError(passEl, passMsgEl);
 
   let valid = true;
 
-  // EMAIL VALIDATION
-
-  if (!emailEl.value.trim()) {
-    setFieldError(emailEl, emailMsgEl, "Email address is required.");
-
-    valid = false;
-  } else if (!isValidEmail(emailEl.value)) {
-    setFieldError(emailEl, emailMsgEl, "Please enter a valid email address.");
-
+  if (!nameEl.value.trim()) {
+    setFieldError(nameEl, nameMsgEl, "Full name is required.");
     valid = false;
   }
 
-  // PASSWORD VALIDATION
+  if (!emailEl.value.trim()) {
+    setFieldError(emailEl, emailMsgEl, "Email address is required.");
+    valid = false;
+  } else if (!isValidEmail(emailEl.value)) {
+    setFieldError(emailEl, emailMsgEl, "Please enter a valid email address.");
+    valid = false;
+  }
 
-  if (!passEl.value) {
-    setFieldError(passEl, passMsgEl, "Password is required.");
-
+  if (!passEl.value || passEl.value.length < 8) {
+    setFieldError(passEl, passMsgEl, "Password must be at least 8 characters.");
     valid = false;
   }
 
   if (!valid) return;
 
-  setLoading("loginBtn", true);
+  setLoading("registerBtn", true);
 
   try {
-    const res = await fetch("/api/login", {
+    const res = await fetch("/api/register", {
       method: "POST",
-
-      headers: {
-        "Content-Type": "application/json",
-      },
-
-      credentials: "include",
-
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        name: nameEl.value,
         email: emailEl.value,
-
         password: passEl.value,
+        role: "patient",
+        age: ageEl.value || null,
+        gender: genderEl.value || null
       }),
     });
 
     const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || "Registration failed");
 
-    // ERROR
-
-    if (!res.ok || data.error) {
-      throw new Error(data.error || "Login failed");
-    }
-
-    // SUCCESS MESSAGE
-
-    showMessage("loginMsg", "Authenticated! Redirecting...");
-
-    // ROLE BASED REDIRECT
-
+    showMessage("registerMsg", data.message, "success");
     setTimeout(() => {
-      window.location.href = data.redirect;
-    }, 1000);
+      switchTab("login");
+    }, 2000);
   } catch (err) {
-    showMessage("loginMsg", err.message, "error");
+    showMessage("registerMsg", err.message, "error");
   } finally {
-    setLoading("loginBtn", false);
+    setLoading("registerBtn", false);
+  }
+});
+
+/* ─── FORGOT PASSWORD VALIDATION & SUBMIT ─────────────────────────────────── */
+document.getElementById("requestOtpBtn").addEventListener("click", async () => {
+  const emailEl = document.getElementById("forgotEmail");
+  const emailMsgEl = document.getElementById("forgotEmailMsg");
+  clearFieldError(emailEl, emailMsgEl);
+  
+  if (!emailEl.value.trim() || !isValidEmail(emailEl.value)) {
+    setFieldError(emailEl, emailMsgEl, "Please enter a valid email address.");
+    return;
+  }
+  
+  setLoading("requestOtpBtn", true);
+  try {
+    const res = await fetch("/api/request_otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: emailEl.value }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || "Failed to request OTP");
+    
+    showMessage("forgotMsg", "OTP sent! Check terminal/logs for the code.", "success");
+    document.getElementById("forgotStep1").style.display = "none";
+    document.getElementById("forgotStep2").style.display = "block";
+    emailEl.readOnly = true; // Lock email field
+  } catch (err) {
+    showMessage("forgotMsg", err.message, "error");
+  } finally {
+    setLoading("requestOtpBtn", false);
+  }
+});
+
+document.getElementById("forgotForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const emailEl = document.getElementById("forgotEmail");
+  const otpEl = document.getElementById("forgotOtp");
+  const passEl = document.getElementById("forgotPassword");
+  
+  const otpMsgEl = document.getElementById("forgotOtpMsg");
+  const passMsgEl = document.getElementById("forgotPasswordMsg");
+
+  clearFieldError(otpEl, otpMsgEl);
+  clearFieldError(passEl, passMsgEl);
+
+  let valid = true;
+
+  if (!otpEl.value.trim() || otpEl.value.trim().length !== 6) {
+    setFieldError(otpEl, otpMsgEl, "Enter the 6-digit OTP.");
+    valid = false;
+  }
+
+  if (!passEl.value || passEl.value.length < 8) {
+    setFieldError(passEl, passMsgEl, "Password must be at least 8 characters.");
+    valid = false;
+  }
+
+  if (!valid) return;
+
+  setLoading("forgotBtn", true);
+
+  try {
+    const res = await fetch("/api/reset_password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: emailEl.value, otp: otpEl.value, password: passEl.value }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || "Reset failed");
+
+    showMessage("forgotMsg", data.message, "success");
+    setTimeout(() => {
+      switchTab("login");
+      // Reset form visually
+      document.getElementById("forgotStep1").style.display = "block";
+      document.getElementById("forgotStep2").style.display = "none";
+      emailEl.readOnly = false;
+      document.getElementById("forgotForm").reset();
+    }, 2000);
+  } catch (err) {
+    showMessage("forgotMsg", err.message, "error");
+  } finally {
+    setLoading("forgotBtn", false);
   }
 });
 

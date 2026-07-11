@@ -108,6 +108,9 @@
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             <span></span>
           </span>
+          <div style="text-align: right; margin-top: 8px;">
+            <a href="#" onclick="switchTab('forgot'); return false;" style="font-size: 13px; color: var(--accent); text-decoration: none; font-weight: 500;">Forgot Password?</a>
+          </div>
         </div>
 
         <button type="submit" class="btn" id="loginBtn">
@@ -166,21 +169,8 @@
           </span>
         </div>
 
-        <!-- Role & Age inline grid -->
+        <!-- Age & Gender inline grid -->
         <div class="inline-grid">
-          <div class="group">
-            <label for="regRole">Role</label>
-            <div class="input-wrap">
-              <span class="input-icon">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-              </span>
-              <select id="regRole" class="inline-grid-select">
-                <option value="patient">Patient</option>
-                <option value="doctor">Doctor</option>
-              </select>
-            </div>
-          </div>
-
           <div class="group">
             <label for="regAge">Age</label>
             <div class="input-wrap">
@@ -190,7 +180,6 @@
               <input type="number" id="regAge" placeholder="Age" min="1" max="120" />
             </div>
           </div>
-        </div>
 
         <div class="group">
           <label for="regGender">Gender</label>
@@ -200,11 +189,12 @@
             </span>
             <select id="regGender" class="inline-grid-select">
               <option value="">Select gender</option>
-              <option>Male</option>
-              <option>Female</option>
-              <option>Other</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
             </select>
           </div>
+        </div>
         </div>
 
         <button type="submit" class="btn" id="registerBtn">
@@ -215,6 +205,74 @@
         <div class="msg" id="registerMsg"></div>
       </form>
 
+      <!-- ─── FORGOT PASSWORD FORM ──────────────────────────────────────── -->
+      <form class="form" id="forgotForm" novalidate>
+        
+        <div id="forgotStep1">
+          <div class="group">
+            <label for="forgotEmail">Email Address</label>
+            <div class="input-wrap">
+              <span class="input-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+              </span>
+              <input type="email" id="forgotEmail" placeholder="you@example.com" autocomplete="email" />
+            </div>
+            <span class="field-msg" id="forgotEmailMsg">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span></span>
+            </span>
+          </div>
+
+          <button type="button" class="btn" id="requestOtpBtn">
+            <span class="btn-spinner"></span>
+            <span class="btn-text">Send OTP to Email</span>
+          </button>
+        </div>
+
+        <div id="forgotStep2" style="display: none;">
+          <div class="group">
+            <label for="forgotOtp">6-Digit OTP</label>
+            <div class="input-wrap">
+              <span class="input-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </span>
+              <input type="text" id="forgotOtp" placeholder="123456" autocomplete="off" />
+            </div>
+            <span class="field-msg" id="forgotOtpMsg">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span></span>
+            </span>
+          </div>
+
+          <div class="group">
+            <label for="forgotPassword">New Password</label>
+            <div class="input-wrap">
+              <span class="input-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </span>
+              <input type="password" id="forgotPassword" placeholder="Min. 8 chars (1 uppercase, 1 number)" />
+              <button type="button" class="input-action" onclick="togglePwd('forgotPassword', this)" aria-label="Toggle password visibility">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+              </button>
+            </div>
+            <span class="field-msg" id="forgotPasswordMsg">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span></span>
+            </span>
+          </div>
+
+          <button type="submit" class="btn" id="forgotBtn">
+            <span class="btn-spinner"></span>
+            <span class="btn-text">Verify OTP & Reset Password</span>
+          </button>
+        </div>
+        
+        <div style="text-align: center; margin-top: 16px;">
+          <a href="#" onclick="switchTab('login'); return false;" style="font-size: 13px; color: var(--text-muted); text-decoration: none;">Back to Login</a>
+        </div>
+
+        <div class="msg" id="forgotMsg"></div>
+      </form>
       <!-- Secure Badge -->
       <div class="secure-badge">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
@@ -227,6 +285,6 @@
     </div><!-- /.right-panel -->
 
     <!-- Scripts -->
-    <script src="../static/js/login.js"></script>
+    <script src="../static/js/login.js?v=5"></script>
   </body>
 </html>

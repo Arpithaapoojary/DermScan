@@ -56,8 +56,68 @@ async function loadUser() {
     document.getElementById("sidebarAvatar").textContent = data.name
       ? data.name.charAt(0).toUpperCase()
       : "?";
+      
+    // Store globally for PDF reports & Modal
+    window.patientName = data.name;
+    window.patientAge = data.age !== "N/A" ? data.age : "";
+    window.patientGender = data.gender !== "N/A" ? data.gender : "";
   } catch (err) {
     window.location.href = "/login";
+  }
+}
+
+/* ─────────────────────────────────────────
+   PROFILE MODAL
+   ───────────────────────────────────────── */
+function openProfileModal() {
+  document.getElementById("profName").value = window.patientName || "";
+  document.getElementById("profAge").value = window.patientAge || "";
+  document.getElementById("profGender").value = window.patientGender || "";
+  document.getElementById("profileModal").classList.add("active");
+}
+
+function closeProfileModal() {
+  document.getElementById("profileModal").classList.remove("active");
+}
+
+async function saveProfile() {
+  const btn = document.getElementById("saveProfBtn");
+  const name = document.getElementById("profName").value;
+  const age = document.getElementById("profAge").value;
+  const gender = document.getElementById("profGender").value;
+
+  if (!name.trim()) {
+    alert("Name is required");
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Saving...";
+
+  try {
+    const res = await fetch("/api/update_profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, age, gender })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    // Update UI
+    window.patientName = data.name;
+    window.patientAge = data.age || "";
+    window.patientGender = data.gender || "";
+    
+    document.getElementById("welcomeText").textContent = `Welcome back, ${data.name}`;
+    document.getElementById("sidebarName").textContent = data.name;
+    document.getElementById("sidebarAvatar").textContent = data.name.charAt(0).toUpperCase();
+
+    closeProfileModal();
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Save Changes";
   }
 }
 
@@ -162,10 +222,15 @@ async function loadHistory() {
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
               ${dateStr}
             </div>
-            <button class="btn btn-primary btn-sm" onclick='downloadReport(${JSON.stringify(item)})'>
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-              Report
-            </button>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <button class="btn btn-primary btn-sm" onclick='downloadReport(${JSON.stringify(item)})'>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                Report
+              </button>
+              <button class="btn btn-sm" title="Delete Scan" onclick="deleteScan(${item.id}, this)" style="background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.3);padding:6px 10px;">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+              </button>
+            </div>
           </div>
         </div>
       `;
@@ -174,6 +239,40 @@ async function loadHistory() {
     });
   } catch (err) {
     console.log(err);
+  }
+}
+
+/* ─────────────────────────────────────────
+   DELETE SCAN
+   ───────────────────────────────────────── */
+
+async function deleteScan(scanId, btnEl) {
+  if (!confirm("Are you sure you want to permanently delete this scan? This cannot be undone.")) return;
+
+  btnEl.disabled = true;
+  btnEl.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>`;
+
+  try {
+    const res = await fetch(`/api/predict/${scanId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Failed to delete");
+
+    // Remove the card from the DOM
+    const card = btnEl.closest(".card");
+    card.style.transition = "all 0.3s ease";
+    card.style.opacity = "0";
+    card.style.transform = "scale(0.9)";
+    setTimeout(() => {
+      card.remove();
+      loadHistory(); // Refresh stats
+    }, 300);
+  } catch (e) {
+    alert(e.message);
+    btnEl.disabled = false;
+    btnEl.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>`;
   }
 }
 
@@ -325,9 +424,9 @@ async function downloadReport(item) {
         patient: {
           name: document.getElementById("sidebarName").textContent,
 
-          age: "N/A",
+          age: window.patientAge || "N/A",
 
-          gender: "N/A",
+          gender: window.patientGender || "N/A",
 
           area: "Skin Region",
         },
