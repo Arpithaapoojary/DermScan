@@ -885,7 +885,7 @@ def delete_prediction(pid):
         cur = conn.cursor()
         
         # Ensure the prediction belongs to the logged-in user
-        cur.execute('SELECT id, image_path, gradcam_path FROM predictions WHERE id = ? AND user_id = ?', 
+        cur.execute('SELECT id, image_path, gradcam_path FROM predictions WHERE id = ? AND patient_id = ?', 
                     (pid, session['user_id']))
         pred = cur.fetchone()
         
@@ -899,10 +899,10 @@ def delete_prediction(pid):
         
         # Optional: Delete actual files from disk
         if pred[1]:
-            try: os.remove(os.path.join(UPLOAD_FOLDER, 'original', pred[1]))
+            try: os.remove(os.path.join(IMG_DIR, pred[1]))
             except: pass
         if pred[2]:
-            try: os.remove(os.path.join(UPLOAD_FOLDER, 'gradcam', pred[2]))
+            try: os.remove(os.path.join(GRADCAM_DIR, pred[2]))
             except: pass
             
         return jsonify({'message': 'Scan deleted successfully.'})
