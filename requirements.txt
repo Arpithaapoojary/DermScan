@@ -1,0 +1,10 @@
+Flask
+Flask-Cors
+Flask-Bcrypt
+numpy
+Pillow
+tensorflow
+opencv-python-headless
+matplotlib
+reportlab
+gunicorn
