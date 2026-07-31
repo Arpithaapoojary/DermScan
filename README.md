@@ -7,6 +7,10 @@
 [![TensorFlow](https://img.shields.io/badge/TensorFlow-Keras-orange.svg)](https://www.tensorflow.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
+<p align="center">
+  <img src="assets/screenshot.png" alt="DermScan Demo" width="800">
+</p>
+
 ## Overview
 
 DermScan is an AI-assisted skin disease diagnosis platform built around a two-stage hierarchical deep learning pipeline. A skin image is first classified at a coarse level — allergy or infection — and then routed to a second, condition-specific model that predicts the precise diagnosis. Both stages are built on **MobileNetV2**, chosen for its balance of accuracy and computational efficiency.
